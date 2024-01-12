@@ -32,7 +32,7 @@ with open("requirements.txt", encoding="utf-8") as f:
     required_packages = f.read().splitlines()
 
 
-with codecs.open("README.rst", "r", "utf-8") as f:
+with codecs.open("README.md", "r", "utf-8") as f:
     readme = f.read()
 
 
