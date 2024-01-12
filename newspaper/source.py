@@ -151,7 +151,7 @@ class Source:
         self.download()
         self.parse()
 
-        ## Don't use category temporarily, TODO: fix this issue
+        ## Don't use category temporarily, TODO: update this if necessary
 
         # self.set_categories()
         # print("debug category1 : ", len(self.categories), self.categories)
@@ -159,6 +159,7 @@ class Source:
         # self.parse_categories() ## fill Category.doc
         # print("debug category2 : ", len(self.categories))
 
+        # check whether rss feed is contained
         self.set_feeds()
         self.download_feeds()  # mthread
         self.parse_feeds()
@@ -377,6 +378,44 @@ class Source:
             )
         return articles
 
+    def self_to_articles(self):
+        """Returns a list of :any:`Article` objects based on
+        articles found in the Source's RSS feeds
+
+        Use feedparse to do this
+        """
+        articles = []
+
+        def get_urls(source_url):
+            """TODO Find a way to get article URLs in subpages recursively
+
+            """
+            results = [source_url]
+            return results
+
+        urls = get_urls(self.url)
+        cur_articles = []
+
+        for url in urls:
+            article = Article(
+                url=url,
+                source_url=self.url,
+                read_more_link=self.read_more_link,
+                config=self.config,
+            )
+            cur_articles.append(article)
+
+        if self.config.memoize_articles:
+            cur_articles = utils.memoize_articles(self, cur_articles)
+        after_memo = len(cur_articles)
+
+        articles.extend(cur_articles)
+
+        log.debug(
+            "%d for %s", after_memo, self.url
+        )
+        return articles
+
     def feeds_to_articles2(self):
         """Returns a list of :any:`Article` objects based on
         articles found in the Source's RSS feeds
@@ -476,8 +515,9 @@ class Source:
         """Returns a list of all articles, from both categories and feeds"""
         category_articles = self.categories_to_articles()
         feed_articles = self.feeds_to_articles2()
+        self_articles = self.self_to_articles()
 
-        articles = feed_articles + category_articles
+        articles = self_articles + feed_articles + category_articles
         uniq = {article.url: article for article in articles}
         return list(uniq.values())
 
