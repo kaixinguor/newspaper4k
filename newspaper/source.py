@@ -24,6 +24,8 @@ from .configuration import Configuration
 from .extractors import ContentExtractor
 from .settings import ANCHOR_DIRECTORY, NUM_THREADS_PER_SOURCE_WARN_LIMIT
 
+import feedparser
+
 log = logging.getLogger(__name__)
 
 
@@ -149,13 +151,18 @@ class Source:
         self.download()
         self.parse()
 
-        self.set_categories()
-        self.download_categories()  # mthread
-        self.parse_categories()
+        ## Don't use category temporarily, TODO: fix this issue
+
+        # self.set_categories()
+        # print("debug category1 : ", len(self.categories), self.categories)
+        # self.download_categories()  # mthread ## fill Category.html
+        # self.parse_categories() ## fill Category.doc
+        # print("debug category2 : ", len(self.categories))
 
         self.set_feeds()
         self.download_feeds()  # mthread
-        # self.parse_feeds()
+        self.parse_feeds()
+        self.feeds = [self._map_title_to_feed(f) for f in self.feeds if f.title != "Error 404 (Not Found)!!!"] ## ugly trick to handle 404 TODO: improve
 
         self.generate_articles()
 
@@ -189,10 +196,23 @@ class Source:
         """Don't need to cache getting feed urls, it's almost
         instant with xpath
         """
-        common_feed_urls = ["/feed", "/feeds", "/rss"]
-        common_feed_urls = [urljoin(self.url, url) for url in common_feed_urls]
+
+        ## This paragraph looks buggy
+
+        # common_feed_urls = ["/feed", "/feeds", "/rss"]
+        # common_feed_urls = [urljoin(self.url, url) for url in common_feed_urls]
+
+        # remove '/' to avoid getting feed only in url roots
+        common_feed_urls_suffix = ["feed/", "feeds/", "rss/"]
+        common_feed_urls = [urljoin(self.url, url) for url in common_feed_urls_suffix]
 
         split = urlsplit(self.url)
+
+        # trick for google rss format
+        if split.netloc in ('blog.google'):
+            self.feeds = [Feed(url=url) for url in common_feed_urls]
+            return
+
         if split.netloc in ("medium.com", "www.medium.com"):
             # should handle URL to user or user's post
             if split.path.startswith("/@"):
@@ -357,6 +377,54 @@ class Source:
             )
         return articles
 
+    def feeds_to_articles2(self):
+        """Returns a list of :any:`Article` objects based on
+        articles found in the Source's RSS feeds
+
+        Use feedparse to do this
+        """
+        articles = []
+
+        def get_urls(feed_url):
+
+            feed = feedparser.parse(feed_url)
+
+            log.debug(f"feed url: {feed_url}, number of feed entries: {len(feed.entries)}")
+            results = [entry.link for entry in feed.entries
+                        if hasattr(entry, 'title')
+                            and hasattr(entry, 'link')
+                            and hasattr(entry, 'published')]
+            return results
+
+        for feed in self.feeds:
+
+            urls = get_urls(feed.url)
+            cur_articles = []
+            before_purge = len(urls)
+
+            for url in urls:
+                article = Article(
+                    url=url,
+                    source_url=feed.url,
+                    read_more_link=self.read_more_link,
+                    config=self.config,
+                )
+                cur_articles.append(article)
+
+            # cur_articles = self.purge_articles("url", cur_articles)
+            after_purge = len(cur_articles)
+
+            if self.config.memoize_articles:
+                cur_articles = utils.memoize_articles(self, cur_articles)
+            after_memo = len(cur_articles)
+
+            articles.extend(cur_articles)
+
+            log.debug(
+                "%d->%d->%d for %s", before_purge, after_purge, after_memo, feed.url
+            )
+        return articles
+
     def categories_to_articles(self):
         """Takes the categories, splays them into a big list of urls and churns
         the articles out of each url with the url_to_article method
@@ -407,7 +475,7 @@ class Source:
     def _generate_articles(self):
         """Returns a list of all articles, from both categories and feeds"""
         category_articles = self.categories_to_articles()
-        feed_articles = self.feeds_to_articles()
+        feed_articles = self.feeds_to_articles2()
 
         articles = feed_articles + category_articles
         uniq = {article.url: article for article in articles}
@@ -416,6 +484,7 @@ class Source:
     def generate_articles(self, limit=5000):
         """Saves all current articles of news source, filter out bad urls"""
         articles = self._generate_articles()
+        log.debug(f"Number of generated articles: {len(articles)}")
         self.articles = articles[:limit]
         log.debug("%d articles generated and cutoff at %d", len(articles), limit)
 
