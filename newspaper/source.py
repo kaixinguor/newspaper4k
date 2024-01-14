@@ -332,7 +332,7 @@ class Source:
 
     def parse_feeds(self):
         """Add titles to feeds"""
-        log.debug("We are parsing %d feeds", self.feeds)
+        log.debug(f"We are parsing {len(self.feeds)} feeds")
         self.feeds = [self._map_title_to_feed(f) for f in self.feeds]
 
     def feeds_to_articles(self):
