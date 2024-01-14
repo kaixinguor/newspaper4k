@@ -37,8 +37,8 @@ with codecs.open("README.md", "r", "utf-8") as f:
 
 
 setup(
-    name="newspaper4k",
-    version="0.9.0",
+    name="newspaper4k-dev",
+    version="0.9.2",
     description="Simplified python article discovery & extraction.",
     long_description=readme,
     author="Andrei Paraschiv",
