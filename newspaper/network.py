@@ -167,7 +167,7 @@ def get_html(url, config=None, response=None):
             return ""
     except RequestException as e:
         log.debug("get_html() error. %s on URL: %s", e, url)
-
+        raise
     return html
 
 
